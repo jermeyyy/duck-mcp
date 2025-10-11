@@ -205,6 +205,38 @@ You can override any configuration via CLI arguments:
 fastmcp run --port 8080 --log-level DEBUG
 ```
 
+### MCP Client Configuration
+
+To use this MCP server with MCP-compatible clients (like Claude Desktop), add the following configuration to your client's `mcp.json` file:
+
+#### Using uv (recommended):
+```json
+{
+  "mcpServers": {
+    "duck-mcp": {
+      "command": "uv",
+      "args": ["run", "fastmcp", "run", "server.py"],
+      "cwd": "/path/to/duck-mcp"
+    }
+  }
+}
+```
+
+#### Using Python directly:
+```json
+{
+  "mcpServers": {
+    "duck-mcp": {
+      "command": "python",
+      "args": ["server.py"],
+      "cwd": "/path/to/duck-mcp"
+    }
+  }
+}
+```
+
+Replace `/path/to/duck-mcp` with the actual path to your duck-mcp directory. The `cwd` (current working directory) ensures the server runs from the correct location.
+
 ## Learn More
 
 - [FastMCP Documentation](https://gofastmcp.com/)
