@@ -8,6 +8,8 @@ This server provides the following tools:
 - **greet**: Greet a user by name
 - **roll_dice**: Roll 1-10 six-sided dice
 - **add**: Add two numbers together
+- **select_option**: Ask user to select one option from provided choices (uses elicitation)
+- **provide_information**: Request additional information from user in natural language (uses elicitation)
 
 ## Installation
 
@@ -108,6 +110,39 @@ async def test_server():
 
 if __name__ == "__main__":
     asyncio.run(test_server())
+```
+
+### Testing Elicitation Tools
+
+The `select_option` and `provide_information` tools use FastMCP's elicitation feature to interactively request information from users:
+
+```python
+import asyncio
+from fastmcp import Client
+
+async def elicitation_handler(message: str, response_type: type, params, context):
+    """Handler that responds to server's elicitation requests"""
+    print(f"Server asks: {message}")
+    user_input = input("Your response: ")
+    return response_type(selected_option=user_input) if hasattr(response_type, '__annotations__') and 'selected_option' in response_type.__annotations__ else response_type(information=user_input)
+
+async def test_elicitation():
+    async with Client("http://localhost:8000/mcp", elicitation_handler=elicitation_handler) as client:
+        # Test select_option tool
+        result = await client.call_tool("select_option", {
+            "question": "What's your favorite programming language?",
+            "options": ["Python", "JavaScript", "Rust", "Go"]
+        })
+        print(result.data)
+        
+        # Test provide_information tool
+        result = await client.call_tool("provide_information", {
+            "question": "What would you like to build today?"
+        })
+        print(result.data)
+
+if __name__ == "__main__":
+    asyncio.run(test_elicitation())
 ```
 
 ## Project Structure
