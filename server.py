@@ -10,26 +10,6 @@ mcp = FastMCP(name="Duck MCP Server")
 
 
 @mcp.tool
-def greet(name: str) -> str:
-    """Greet a user by name"""
-    return f"🦆 Hello, {name}! Welcome to Duck MCP Server!"
-
-
-@mcp.tool
-def roll_dice(n_dice: int = 1) -> list[int]:
-    """Roll n_dice 6-sided dice and return the results"""
-    if n_dice < 1 or n_dice > 10:
-        raise ValueError("Number of dice must be between 1 and 10")
-    return [random.randint(1, 6) for _ in range(n_dice)]
-
-
-@mcp.tool
-def add(a: int, b: int) -> int:
-    """Add two numbers together"""
-    return a + b
-
-
-@mcp.tool
 async def select_option(ctx: Context, question: str, options: list[str]) -> str:
     """
     Ask user to select one option from provided choices.

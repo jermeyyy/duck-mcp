@@ -5,9 +5,6 @@ A simple MCP (Model Context Protocol) server built with [FastMCP](https://gofast
 ## Features
 
 This server provides the following tools:
-- **greet**: Greet a user by name
-- **roll_dice**: Roll 1-10 six-sided dice
-- **add**: Add two numbers together
 - **select_option**: Ask user to select one option from provided choices (uses elicitation)
 - **provide_information**: Request additional information from user in natural language (uses elicitation)
 
@@ -100,13 +97,9 @@ from fastmcp import Client
 
 async def test_server():
     async with Client("http://localhost:8000/mcp") as client:
-        # Test the greet tool
-        result = await client.call_tool("greet", {"name": "World"})
-        print(result.data)
-        
-        # Test the roll_dice tool
-        result = await client.call_tool("roll_dice", {"n_dice": 3})
-        print(result.data)
+        # Ping the server to check connectivity
+        await client.ping()
+        print("Server is running!")
 
 if __name__ == "__main__":
     asyncio.run(test_server())
