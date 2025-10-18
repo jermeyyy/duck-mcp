@@ -7,6 +7,7 @@ A simple MCP (Model Context Protocol) server built with [FastMCP](https://gofast
 This server provides the following tools:
 - **select_option**: Ask user to select one option from provided choices (uses elicitation)
 - **provide_information**: Request additional information from user in natural language (uses elicitation)
+- **request_manual_test**: Request the user to perform manual testing and report results (uses elicitation)
 
 ## Installation
 
@@ -107,7 +108,7 @@ if __name__ == "__main__":
 
 ### Testing Elicitation Tools
 
-The `select_option` and `provide_information` tools use FastMCP's elicitation feature to interactively request information from users:
+The `select_option`, `provide_information`, and `request_manual_test` tools use FastMCP's elicitation feature to interactively request information from users:
 
 ```python
 import asyncio
@@ -131,6 +132,13 @@ async def test_elicitation():
         # Test provide_information tool
         result = await client.call_tool("provide_information", {
             "question": "What would you like to build today?"
+        })
+        print(result.data)
+        
+        # Test request_manual_test tool
+        result = await client.call_tool("request_manual_test", {
+            "test_description": "Navigate to the login page and verify the form renders correctly",
+            "expected_outcome": "Login form should display username/password fields and submit button"
         })
         print(result.data)
 

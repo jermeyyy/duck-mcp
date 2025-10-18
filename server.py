@@ -70,6 +70,49 @@ async def provide_information(ctx: Context, question: str) -> str:
         return "Information request cancelled by user"
 
 
+@mcp.tool
+async def request_manual_test(ctx: Context, test_description: str, expected_outcome: str = "") -> str:
+    """
+    Request the user to perform manual testing and report results.
+    
+    This tool allows an agent to ask a user to perform manual testing of functionality,
+    and then collect the results via elicitation for analysis.
+    
+    Args:
+        test_description: Detailed description of what manual testing should be performed
+        expected_outcome: Optional description of what the expected outcome should be
+    
+    Returns:
+        The test results reported by the user or status message
+    """
+    @dataclass
+    class TestResult:
+        result: str
+        success: bool
+    
+    # Build the elicitation message
+    message_parts = [f"Please perform the following manual test:\n\n{test_description}"]
+    
+    if expected_outcome:
+        message_parts.append(f"\nExpected outcome:\n{expected_outcome}")
+    
+    message_parts.append("\n\nPlease report the results below:")
+    elicitation_message = "".join(message_parts)
+    
+    result = await ctx.elicit(
+        message=elicitation_message,
+        response_type=TestResult
+    )
+    
+    if result.action == "accept":
+        success_indicator = "✓ PASSED" if result.data.success else "✗ FAILED"
+        return f"Test Result: {success_indicator}\n\nReport:\n{result.data.result}"
+    elif result.action == "decline":
+        return "User declined to perform manual testing"
+    else:  # cancel
+        return "Manual testing request cancelled by user"
+
+
 if __name__ == "__main__":
     # Run the server with stdio transport by default
     mcp.run()
