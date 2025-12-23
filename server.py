@@ -12,7 +12,10 @@ mcp = FastMCP(name="Duck MCP Server")
 @mcp.tool
 async def select_option(ctx: Context, question: str, options: list[str]) -> str:
     """
-    Ask user to select one option from provided choices.
+    Ask user to select one option from provided choices using a single-select UI.
+    
+    Includes an "Other" option that allows users to provide a custom answer
+    via a follow-up elicitation.
     
     Args:
         question: Detailed but brief question to ask the user
@@ -21,21 +24,33 @@ async def select_option(ctx: Context, question: str, options: list[str]) -> str:
     Returns:
         The selected option or status message
     """
-    @dataclass
-    class OptionSelection:
-        selected_option: str
+    OTHER_OPTION = "Other (provide answer)"
     
-    # Format options for display
-    options_text = "\n".join([f"{i+1}. {opt}" for i, opt in enumerate(options)])
-    elicitation_message = f"{question}\n\nOptions:\n{options_text}\n\nPlease select an option by entering its number or text:"
+    # Add "Other" option to allow custom answers
+    options_with_other = options + [OTHER_OPTION]
     
+    # First elicitation: single-select from constrained options
     result = await ctx.elicit(
-        message=elicitation_message,
-        response_type=OptionSelection
+        message=question,
+        response_type=options_with_other  # List of strings -> enum schema
     )
     
     if result.action == "accept":
-        return f"Selected: {result.data.selected_option}"
+        if result.data == OTHER_OPTION:
+            # Second elicitation: get custom answer description
+            custom_result = await ctx.elicit(
+                message="Please describe your preferred option:",
+                response_type=str
+            )
+            
+            if custom_result.action == "accept":
+                return f"Selected: {custom_result.data}"
+            elif custom_result.action == "decline":
+                return "User declined to provide custom option"
+            else:  # cancel
+                return "User declined to select an option"
+        else:
+            return f"Selected: {result.data}"
     elif result.action == "decline":
         return "User declined to select an option"
     else:  # cancel
