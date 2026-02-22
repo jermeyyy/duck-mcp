@@ -7,6 +7,10 @@ echo "🦆 Building Duck MCP Server..."
 echo "📦 Installing dependencies..."
 uv sync
 
+# Build UI
+echo "🎨 Building MCP App UI..."
+cd ui && npm ci && npm run build && cd ..
+
 # Run tests
 echo "🧪 Running tests..."
 uv run pytest tests/ -v

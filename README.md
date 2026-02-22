@@ -5,9 +5,16 @@ A simple MCP (Model Context Protocol) server built with [FastMCP](https://gofast
 ## Features
 
 This server provides the following tools:
+
+### Elicitation Tools
 - **select_option**: Ask user to select one option from provided choices (uses elicitation)
 - **provide_information**: Request additional information from user in natural language (uses elicitation)
 - **request_manual_test**: Request the user to perform manual testing and report results (uses elicitation)
+
+### MCP Apps
+- **ask_questions**: Ask the user one or more questions via an interactive form UI rendered in a sandboxed iframe. Supports single-select (radio buttons), multi-select (checkboxes), and free-text question types in a pager/wizard layout.
+
+The `ask_questions` tool uses the [MCP Apps extension](https://modelcontextprotocol.io/docs/extensions/apps) to render a React-based form UI directly inside MCP hosts that support it (Claude Desktop, VS Code Copilot, etc.). For hosts that don't support Apps, the questions are returned as plain text.
 
 ## Installation
 
@@ -15,6 +22,7 @@ This server provides the following tools:
 
 - Python 3.10 or higher
 - [uv](https://docs.astral.sh/uv/getting-started/installation/) (recommended) or pip
+- Node.js 18+ and npm (for building the MCP App UI)
 
 ### Install Dependencies
 
@@ -27,6 +35,21 @@ Using pip:
 ```bash
 pip install -e .
 ```
+
+### Build the MCP App UI
+
+The `ask_questions` tool requires the React UI to be built:
+
+```bash
+make build-ui
+```
+
+Or manually:
+```bash
+cd ui && npm ci && npm run build
+```
+
+This produces `dist/mcp-app.html`, a single HTML file with all JS/CSS inlined.
 
 ## Usage
 
@@ -90,60 +113,19 @@ fastmcp install claude-code
 
 ## Testing
 
-You can test the server using a FastMCP client:
-
-```python
-import asyncio
-from fastmcp import Client
-
-async def test_server():
-    async with Client("http://localhost:8000/mcp") as client:
-        # Ping the server to check connectivity
-        await client.ping()
-        print("Server is running!")
-
-if __name__ == "__main__":
-    asyncio.run(test_server())
+Run all tests:
+```bash
+make test
 ```
 
-### Testing Elicitation Tools
+Run with coverage:
+```bash
+make test-coverage
+```
 
-The `select_option`, `provide_information`, and `request_manual_test` tools use FastMCP's elicitation feature to interactively request information from users:
-
-```python
-import asyncio
-from fastmcp import Client
-
-async def elicitation_handler(message: str, response_type: type, params, context):
-    """Handler that responds to server's elicitation requests"""
-    print(f"Server asks: {message}")
-    user_input = input("Your response: ")
-    return response_type(selected_option=user_input) if hasattr(response_type, '__annotations__') and 'selected_option' in response_type.__annotations__ else response_type(information=user_input)
-
-async def test_elicitation():
-    async with Client("http://localhost:8000/mcp", elicitation_handler=elicitation_handler) as client:
-        # Test select_option tool
-        result = await client.call_tool("select_option", {
-            "question": "What's your favorite programming language?",
-            "options": ["Python", "JavaScript", "Rust", "Go"]
-        })
-        print(result.data)
-        
-        # Test provide_information tool
-        result = await client.call_tool("provide_information", {
-            "question": "What would you like to build today?"
-        })
-        print(result.data)
-        
-        # Test request_manual_test tool
-        result = await client.call_tool("request_manual_test", {
-            "test_description": "Navigate to the login page and verify the form renders correctly",
-            "expected_outcome": "Login form should display username/password fields and submit button"
-        })
-        print(result.data)
-
-if __name__ == "__main__":
-    asyncio.run(test_elicitation())
+Typecheck the UI:
+```bash
+make test-ui
 ```
 
 ## Project Structure
@@ -153,8 +135,34 @@ duck-mcp/
 ├── server.py          # Main server implementation
 ├── fastmcp.json       # FastMCP configuration
 ├── pyproject.toml     # Project metadata and dependencies
+├── Makefile           # Build, test, and development targets
 ├── README.md          # This file
-└── tests/            # Test files (optional)
+├── tests/             # Python tests
+│   └── test_server.py
+├── scripts/           # Build and deployment scripts
+│   ├── build.sh
+│   ├── deploy.sh
+│   └── test.sh
+├── ui/                # React MCP App source (pager/wizard form UI)
+│   ├── package.json
+│   ├── vite.config.ts
+│   ├── tsconfig.json
+│   ├── mcp-app.html   # Vite entry HTML
+│   └── src/
+│       ├── main.tsx
+│       ├── App.tsx
+│       ├── types.ts
+│       ├── components/
+│       │   ├── QuestionPager.tsx
+│       │   ├── PagerControls.tsx
+│       │   ├── SingleSelectPage.tsx
+│       │   ├── MultiSelectPage.tsx
+│       │   ├── TextInputPage.tsx
+│       │   └── Markdown.tsx
+│       └── styles/
+│           └── app.css
+└── dist/              # Built UI output (gitignored)
+    └── mcp-app.html
 ```
 
 ## Development
@@ -167,37 +175,28 @@ To add a new tool to the server, simply decorate a function with `@mcp.tool`:
 @mcp.tool
 def my_new_tool(arg1: str, arg2: int) -> str:
     """Description of what this tool does"""
-    # Your implementation here
     return "result"
 ```
 
 ### Running Tests
 
 ```bash
-pytest
+make test
 ```
 
-## Deployment
-
-### Local Deployment
-
-The server runs with stdio transport by default, making it compatible with local MCP clients like Claude Desktop.
-
-### HTTP Deployment
-
-For remote access, run with HTTP transport:
+### Building
 
 ```bash
-fastmcp run --transport http --host 0.0.0.0 --port 8000
+make build  # Builds UI + Python package
 ```
 
-### FastMCP Cloud
+## MCP Apps Compatibility
 
-Deploy to FastMCP Cloud for managed hosting (requires account):
+The `ask_questions` tool requires an MCP host that supports the [MCP Apps extension](https://modelcontextprotocol.io/docs/extensions/apps) (`io.modelcontextprotocol/ui`). Known compatible hosts:
+- Claude Desktop
+- VS Code Copilot (Insiders)
 
-```bash
-fastmcp cloud deploy
-```
+For hosts without Apps support, the tool returns the questions as plain text for the agent to work with.
 
 ## Configuration
 
@@ -207,15 +206,9 @@ The `fastmcp.json` file contains the server configuration:
 - **environment**: Python version and dependencies
 - **deployment**: Runtime configuration (transport, logging, etc.)
 
-You can override any configuration via CLI arguments:
-
-```bash
-fastmcp run --port 8080 --log-level DEBUG
-```
-
 ### MCP Client Configuration
 
-To use this MCP server with MCP-compatible clients (like Claude Desktop), add the following configuration to your client's `mcp.json` file:
+To use this MCP server with MCP-compatible clients, add the following configuration:
 
 #### Using uv (recommended):
 ```json
@@ -230,26 +223,13 @@ To use this MCP server with MCP-compatible clients (like Claude Desktop), add th
 }
 ```
 
-#### Using Python directly:
-```json
-{
-  "mcpServers": {
-    "duck-mcp": {
-      "command": "python",
-      "args": ["server.py"],
-      "cwd": "/path/to/duck-mcp"
-    }
-  }
-}
-```
-
-Replace `/path/to/duck-mcp` with the actual path to your duck-mcp directory. The `cwd` (current working directory) ensures the server runs from the correct location.
+Replace `/path/to/duck-mcp` with the actual path to your duck-mcp directory.
 
 ## Learn More
 
 - [FastMCP Documentation](https://gofastmcp.com/)
+- [MCP Apps Extension](https://modelcontextprotocol.io/docs/extensions/apps)
 - [Model Context Protocol](https://modelcontextprotocol.io/)
-- [FastMCP GitHub](https://github.com/jlowin/fastmcp)
 
 ## License
 

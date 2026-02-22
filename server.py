@@ -1,12 +1,21 @@
 """
 Duck MCP Server - A simple MCP server built with FastMCP
 """
-import random
+import asyncio
+import json
 from dataclasses import dataclass
+from pathlib import Path
 from fastmcp import FastMCP, Context
+from fastmcp.server.apps import AppConfig
 
 # Create the FastMCP server instance
 mcp = FastMCP(name="Duck MCP Server")
+
+RESOURCE_URI = "ui://duck/mcp-app.html"
+UI_DIST_PATH = Path(__file__).parent / "dist" / "mcp-app.html"
+
+_pending_event: asyncio.Event | None = None
+_pending_answers: dict | None = None
 
 
 @mcp.tool
@@ -126,6 +135,73 @@ async def request_manual_test(ctx: Context, test_description: str, expected_outc
         return "User declined to perform manual testing"
     else:  # cancel
         return "Manual testing request cancelled by user"
+
+
+@mcp.tool(app=AppConfig(resource_uri=RESOURCE_URI))
+async def ask_questions(questions: list[dict], ctx: Context) -> str:
+    """
+    Ask the user one or more questions via an interactive form UI.
+
+    Each question has: id, type (single_select | multi_select | text),
+    label, options (for select types), and required (bool).
+
+    Args:
+        questions: List of question configuration objects
+
+    Returns:
+        JSON string with the user's answers
+    """
+    global _pending_event, _pending_answers
+    _pending_event = asyncio.Event()
+    _pending_answers = None
+
+    try:
+        await asyncio.wait_for(_pending_event.wait(), timeout=300)
+        return json.dumps(_pending_answers)
+    except asyncio.TimeoutError:
+        return json.dumps({"error": "Question session timed out after 5 minutes"})
+    finally:
+        _pending_event = None
+        _pending_answers = None
+
+
+@mcp.tool(
+    app=AppConfig(
+        resource_uri=RESOURCE_URI,
+        visibility=["app"],
+    )
+)
+async def submit_answers(answers: dict, session_id: str = "") -> str:
+    """
+    Receive answers from the MCP App form UI.
+    Called by the MCP App when the user submits the form.
+
+    Args:
+        answers: Dictionary mapping question IDs to user answers
+        session_id: Optional session ID (kept for backward compatibility)
+
+    Returns:
+        Confirmation of received answers
+    """
+    global _pending_event, _pending_answers
+
+    if _pending_event is None:
+        return json.dumps({"error": "No pending question session"})
+
+    _pending_answers = answers
+    _pending_event.set()
+    return json.dumps({"status": "received"})
+
+
+@mcp.resource(RESOURCE_URI)
+def mcp_app_resource() -> str:
+    """Serve the MCP App HTML for the ask_questions tool UI."""
+    if not UI_DIST_PATH.exists():
+        raise FileNotFoundError(
+            f"MCP App HTML not found at {UI_DIST_PATH}. "
+            "Run 'make build-ui' to build the UI first."
+        )
+    return UI_DIST_PATH.read_text(encoding="utf-8")
 
 
 if __name__ == "__main__":

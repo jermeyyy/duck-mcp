@@ -296,3 +296,99 @@ async def test_request_manual_test_cancel():
             {"test_description": "Click the submit button and verify the form submits"}
         )
         assert "Manual testing request cancelled by user" in result.data
+
+
+@pytest.mark.asyncio
+async def test_ask_questions_tool_exists():
+    """Verify ask_questions appears in tool listing."""
+    async with Client(mcp) as client:
+        tools = await client.list_tools()
+        tool_names = [tool.name for tool in tools]
+        assert "ask_questions" in tool_names
+
+
+@pytest.mark.asyncio
+async def test_ask_questions_returns_answers():
+    """Call ask_questions, then submit_answers concurrently, verify answers are returned."""
+    import asyncio
+
+    async with Client(mcp) as client:
+        expected_answers = {"q1": "A"}
+
+        async def submit_after_delay():
+            await asyncio.sleep(0.1)
+            await client.call_tool(
+                "submit_answers",
+                {"session_id": "", "answers": expected_answers},
+            )
+
+        submit_task = asyncio.create_task(submit_after_delay())
+
+        result = await client.call_tool(
+            "ask_questions",
+            {
+                "questions": [
+                    {
+                        "id": "q1",
+                        "type": "single_select",
+                        "label": "Pick one",
+                        "options": ["A", "B"],
+                        "required": True,
+                    }
+                ]
+            },
+        )
+
+        await submit_task
+
+        import json
+        data = json.loads(result.data)
+        assert data == expected_answers
+
+
+@pytest.mark.asyncio
+async def test_ask_questions_has_ui_meta():
+    """Verify ask_questions tool is linked to the MCP App resource via meta."""
+    async with Client(mcp) as client:
+        tools = await client.list_tools()
+        ask_q = next(t for t in tools if t.name == "ask_questions")
+        assert ask_q.meta is not None
+        ui_meta = ask_q.meta.get("ui", {})
+        assert ui_meta.get("resourceUri") == "ui://duck/mcp-app.html"
+
+
+@pytest.mark.asyncio
+async def test_submit_answers_no_pending_session():
+    """Call submit_answers without a pending ask_questions, verify error."""
+    async with Client(mcp) as client:
+        result = await client.call_tool(
+            "submit_answers",
+            {"session_id": "", "answers": {"q1": "A"}},
+        )
+        import json
+        data = json.loads(result.data)
+        assert "error" in data
+
+
+@pytest.mark.asyncio
+async def test_mcp_app_resource_exists():
+    """Verify ui://duck/mcp-app.html is in resource listing."""
+    async with Client(mcp) as client:
+        resources = await client.list_resources()
+        resource_uris = [str(r.uri) for r in resources]
+        assert "ui://duck/mcp-app.html" in resource_uris
+
+
+@pytest.mark.asyncio
+async def test_mcp_app_resource_serves_html():
+    """Read the resource and verify it returns HTML content (requires dist/mcp-app.html to exist)."""
+    from pathlib import Path
+
+    dist_path = Path(__file__).parent.parent / "dist" / "mcp-app.html"
+    if not dist_path.exists():
+        pytest.skip("dist/mcp-app.html not built yet — run 'make build-ui' first")
+
+    async with Client(mcp) as client:
+        content = await client.read_resource("ui://duck/mcp-app.html")
+        text = content[0].text if hasattr(content[0], "text") else str(content[0])
+        assert "<!DOCTYPE html>" in text or "<html" in text

@@ -1,4 +1,4 @@
-.PHONY: help install dev run test clean inspect build deploy
+.PHONY: help install dev run test clean inspect build deploy build-ui clean-ui test-ui
 
 help: ## Show this help message
 	@echo 'Usage: make [target]'
@@ -24,21 +24,30 @@ test: ## Run tests
 test-coverage: ## Run tests with coverage report
 	uv run pytest tests/ -v --cov=. --cov-report=html --cov-report=term
 
+test-ui: ## Typecheck the MCP App UI
+	cd ui && npm ci && npm run typecheck
+
 inspect: ## Inspect server capabilities
 	uv run fastmcp inspect
 
-clean: ## Clean up build artifacts and cache
-	rm -rf build/
+build-ui: ## Build the MCP App UI
+	cd ui && npm ci && npm run build
+
+clean-ui: ## Clean UI build artifacts
 	rm -rf dist/
+	rm -rf ui/node_modules
+
+build: build-ui ## Build the package (includes UI)
+	uv build
+
+clean: clean-ui ## Clean up build artifacts and cache (includes UI)
+	rm -rf build/
 	rm -rf *.egg-info
 	rm -rf .pytest_cache
 	rm -rf htmlcov
 	rm -rf .coverage
 	find . -type d -name __pycache__ -exec rm -rf {} +
 	find . -type f -name "*.pyc" -delete
-
-build: ## Build the package
-	uv build
 
 install-claude: ## Install to Claude Desktop
 	uv run fastmcp install claude-desktop
